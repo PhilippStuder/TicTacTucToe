@@ -4,6 +4,7 @@ import random
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+#test
 
 BOARD_ROWS = 4
 BOARD_COLS = 4
