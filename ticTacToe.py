@@ -255,10 +255,16 @@ class Player:
             for i in positions:
                 positions=positions.pop()
                 next_board[i] = symbol
-                if self.win(next_board)==symbol:
+                tempwinner=self.winner(next_board)
+                if tempwinner==symbol:
                     i+=1
-                elif self.win(next_board)==0:
+                elif tempwinner==0:
                     i-=0.01
+                if not tempwinner:
+                    symbol*=-1
+                    current_depth+=1
+                    self.MonteCarloTreeSearch(current_board, positions, symbol,3)
+
         
         return 1     
 
