@@ -20,7 +20,6 @@ class State:
         self.p2 = p2
         self.isEnd = False
         self.boardHash = None
-        # init p1 plays first
         self.playerSymbol = 1
         self.states = []
     
@@ -29,40 +28,43 @@ class State:
         self.boardHash = str(self.board.reshape(BOARD_COLS*BOARD_ROWS*BOARD_LAYERS))
         return self.boardHash
     
-    def winner(self):
+    def winner(self, board=None):
+
+        if not board:
+            board=self.board
         # vertical
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
-                if sum(self.board[x, y, :]) == 4:
+                if sum(board[x, y, :]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[x, y, :]) == -4:
+                if sum(board[x, y, :]) == -4:
                     self.isEnd = True
                     return -1
         # horizontal y
         for x in range(BOARD_ROWS):
             for z in range(BOARD_LAYERS):
-                if sum(self.board[x, :, z]) == 4:
+                if sum(board[x, :, z]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[x, :, z]) == -4:
+                if sum(board[x, :, z]) == -4:
                     self.isEnd = True
                     return -1
         # horizontal x
         for y in range(BOARD_COLS):
             for z in range(BOARD_LAYERS):
-                if sum(self.board[:, y, z]) == 4:
+                if sum(board[:, y, z]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[:, y, z]) == -4:
+                if sum(board[:, y, z]) == -4:
                     self.isEnd = True
                     return -1
 
         # Diagonals from cube corner to cube corner
-        diag_sum1 = sum([self.board[i, i, i] for i in range(BOARD_COLS)])
-        diag_sum2 = sum([self.board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
-        diag_sum3 = sum([self.board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
-        diag_sum4 = sum([self.board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum1 = sum([board[i, i, i] for i in range(BOARD_COLS)])
+        diag_sum2 = sum([board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
+        diag_sum3 = sum([board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum4 = sum([board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
         
         if any(val == 4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
             self.isEnd = True
@@ -74,12 +76,12 @@ class State:
         # Diagonals from cube edge to cube edge (24 of them)
         diag_sums = []
         for i in range(BOARD_COLS):
-            diag_sums.append(sum([self.board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
 
         if any(val == 4 for val in diag_sums):
             self.isEnd = True
@@ -244,7 +246,26 @@ class Player:
         boardHash = str(board.reshape(BOARD_COLS*BOARD_ROWS*BOARD_LAYERS))
         return boardHash
     
+
+    
+    
+    def MonteCarloTreeSearch(self, current_board, positions, symbol, depth, current_depth=0):
+        while current_depth < depth:
+            next_board = current_board.copy()        
+            for i in positions:
+                positions=positions.pop()
+                next_board[i] = symbol
+                if self.win(next_board)==symbol:
+                    i+=1
+                elif self.win(next_board)==0:
+                    i-=0.01
+        
+        return 1     
+
+        
+
     def chooseAction(self, positions, current_board, symbol):
+        action=self.MonteCarloTreeSearch(current_board, positions, symbol,3)
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
                 if (sum(current_board[x, y, :])) == 3 * symbol:
