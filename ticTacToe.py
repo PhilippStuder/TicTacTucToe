@@ -3,15 +3,61 @@ import pickle
 import random
 from flask import Flask, render_template, request, jsonify
 
-app = Flask(__name__)
-
 BOARD_ROWS = 4
 BOARD_COLS = 4
 BOARD_LAYERS = 4
+st= None
+
+app = Flask(__name__)
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/start_game', methods=['GET'])
+def start_game():
+    global st  # Verwendung der globalen Variable
+    p1 = Player("computer", exp_rate=0)
+    p1.loadPolicy("policy_p1")
+
+    p2 = HumanPlayer("human")
+    st = State(p1, p2)  # Angenommen, p1 und p2 sind bereits definiert oder initialisiert
+    st.play2((0,0,0))
+    st.isWaiting = True
+    return jsonify({'status': 'success', 'message': 'Neues Spiel gestartet'})
+
+
+@app.route('/make_move', methods=['POST'])
+def make_move():
+    global st
+    if st is None:
+        return jsonify({'status': 'error', 'message': 'Spiel wurde noch nicht gestartet'})
+
+    if st.isWaiting:
+        data = request.get_json()
+        row = data['row']
+        col = data['col']
+        lay = data['lay']
+        st.play2((row, col, lay))  # Verarbeitung des menschlichen Zugs
+
+        if not st.isEnd and not st.isWaiting:
+            # Computer spielt direkt nach dem menschlichen Spieler
+            st.play2(None)  # Computer benötigt keine playerAction
+
+        return jsonify({'status': 'success', 'board': st.board.tolist()})
+    else:
+        return jsonify({'status': 'waiting', 'message': 'Warten auf den nächsten Zug'})
+
+   
+@app.route('/get_game_status')
+def get_game_status():
+    global st
+    if st is None:
+        return jsonify({'status': 'error', 'message': 'Spiel nicht gestartet'})
+    print("söösel", st.get_board_as_list())
+    print(jsonify({'status': 'success', 'board': st.get_board_as_list()}))
+    return jsonify({'status': 'success', 'board': st.get_board_as_list()})
+
 
 class State:
     def __init__(self, p1, p2):
@@ -19,10 +65,14 @@ class State:
         self.p1 = p1
         self.p2 = p2
         self.isEnd = False
+        self.isWaiting = False
         self.boardHash = None
         # init p1 plays first
         self.playerSymbol = 1
         self.states = []
+
+    def get_board_as_list(self):
+        return self.board.tolist()
     
     # get unique hash of current board state
     def getHash(self):
@@ -140,91 +190,42 @@ class State:
         self.isEnd = False
         self.playerSymbol = 1
     
-    def play(self, rounds=100):
+
         
+    def play2(self, playerAction):
+        print("************* ACHTUNG!!! **********************")
 
-        for i in range(rounds):
-
-            if i%100 == 0:
-                print("Rounds {}".format(i))
-                p1.savePolicy()
-                p2.savePolicy()
-                print("saved")
-                p1.loadPolicy("policy_p1")
-                p2.loadPolicy("policy_p2")
-
-            while not self.isEnd:
-                
-                # Player 1
-                positions = self.availablePositions()
-                p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
-                # take action and upate board state
-                self.updateState(p1_action)
-                board_hash = self.getHash()
-                self.p1.addState(board_hash)
-                # check board status if it is end
-                self.states.append(board_hash)
-                
-                win = self.winner()
-                if win is not None:
-                    print("player1 wins", len(positions))
-                    self.p1.reset()
-                    self.p2.reset()
-                    self.reset()
-                    break
-
-                else:
-                    # Player 2
-                    positions = self.availablePositions()
-                    p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
-                    self.updateState(p2_action)
-                    board_hash = self.getHash()
-                    self.p2.addState(board_hash)
-                    
-                    win = self.winner()
-                    if win is not None:
-                        print("player2 wins", len(positions))
-                        self.giveReward()
-                        self.p1.reset()
-                        self.p2.reset()
-                        self.reset()
-                        break
-    
-    # play with human
-    def play2(self):
-        self.showBoard()
-        while not self.isEnd:
-            # Player 1
+        if not self.isWaiting:
+            # Player 1 (Computer) macht einen Zug
+            print("computer spielt")
             positions = self.availablePositions()
-            p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
-            # take action and upate board state
+            p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol, playerAction)
             self.updateState(p1_action)
             self.showBoard()
-            # check board status if it is end
-            win = self.winner()
-            if win is not None:
-                if win == 1:
-                    print(self.p1.name, "wins!")
-                else:
-                    print("tie!")
-                self.reset()
-                break
+            self.isWaiting = True  # Warten auf den Zug des menschlichen Spielers
+        else:
+            # Player 2 (Mensch) macht einen Zug
+            print("mensch spielt")
+            positions = self.availablePositions()
+            p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol, playerAction)
+            self.updateState(p2_action)
+            self.showBoard()
+            self.isWaiting = False  # Computer ist wieder an der Reihe
 
+        # Überprüfen, ob das Spiel zu Ende ist
+        win = self.winner()
+        if win is not None:
+            if win == 1:
+                print(self.p1.name, "wins!")
+            elif win == -1:
+                print(self.p2.name, "wins!")
             else:
-                # Player 2
-                positions = self.availablePositions()
-                p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
+                print("tie!")
+            self.isWaiting = True
+            self.reset()
+            return
 
-                self.updateState(p2_action)
-                self.showBoard()
-                win = self.winner()
-                if win is not None:
-                    if win == -1:
-                        print(self.p2.name, "wins!")
-                    else:
-                        print("tie!")
-                    self.reset()
-                    break
+                
 
     def showBoard(self):
         print("#########################")   
@@ -244,7 +245,7 @@ class Player:
         boardHash = str(board.reshape(BOARD_COLS*BOARD_ROWS*BOARD_LAYERS))
         return boardHash
     
-    def chooseAction(self, positions, current_board, symbol):
+    def chooseAction(self, positions, current_board, symbol, playerAction):
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
                 if (sum(current_board[x, y, :])) == 3 * symbol:
@@ -668,17 +669,24 @@ class HumanPlayer:
     def __init__(self, name):
         self.name = name
 
-    def chooseAction(self, positions, current_board, symbol):
+    def chooseAction(self, positions, current_board, symbol, playerAction):
         while True:
-                lay = int(input("Input your action lay:"))
-                row = int(input("Input your action row:"))
-                col = int(input("Input your action col:"))
-                action = (lay, row, col)
+                print("Es wird gespielt")
+                print(playerAction)
+                #lay = int(input("Input your action lay:"))
+                #row = int(input("Input your action row:"))
+                #col = int(input("Input your action col:"))
+                #action = (lay, row, col)
+                action = playerAction
 
                 if action in positions:
                     return action
+
                 else:
                     print("Invalid Input")
+                    st.isWaiting = True
+
+                action = None
 
     # append a hash state
     def addState(self, state):
@@ -693,25 +701,13 @@ class HumanPlayer:
 
 
 if __name__ == "__main__":
-    # training
-    # p1 = Player("p1")
-    # #p1.loadPolicy("policy_p1")
-    # p2 = Player("p2")
-    # #p2.loadPolicy("policy_p2")
-
-    # st = State(p1, p2)
-    # print("training...")
-    # st.play(10000)
-
-    # p1.savePolicy()
-    # p2.savePolicy()
-    # print("saved successfully")
-
     # play with human
-    p1 = Player("computer", exp_rate=0)
-    p1.loadPolicy("policy_p1")
 
-    p2 = HumanPlayer("human")
 
-    st = State(p2, p1)
-    st.play2()
+    #st = State(p2, p1)
+    #test = f"Tim, {st.board}"
+    
+    #playerAction = (0, 0, 0) #Hier sollen die Daten aus dem UI eingespiesen werden für den nächsten Spielzug
+    #st.play2(playerAction)
+
+    app.run(debug=True)

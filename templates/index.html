@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tic Tac Toe</title>
+    <link
+      href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <!-- Fügen Sie hier Ihren CSS-Code ein -->
+  </head>
+  <body>
+    <div class="p-12 text-center">
+      <h1 class="font-bold text-2xl">Tic Tac Tuc Toe</h1>
+
+      <div class="grid-container mx-auto text-center w-64">
+        <!-- Grid 1 -->
+        <div class="grid grid-cols-4 mb-8">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-0-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-12 w-12 mb-4 cursor-pointer"
+              onclick="makeMove(0, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 2 -->
+        <div class="grid grid-cols-4 mb-8">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-1-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-12 w-12 mb-4 cursor-pointer"
+              onclick="makeMove(1, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 3 -->
+        <div class="grid grid-cols-4 mb-8">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-2-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-12 w-12 mb-4 cursor-pointer"
+              onclick="makeMove(2, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 4 -->
+        <div class="grid grid-cols-4 mb-8">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-3-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-12 w-12 mb-4 cursor-pointer"
+              onclick="makeMove(3, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button onclick="startGame()">Spiel starten</button>
+    </div>
+  </body>
+  <style>
+    .cell-not-clickable {
+        pointer-events: none; /* Deaktiviert Klickereignisse */
+        opacity: 0.5; /* Macht die Zelle blasser */
+    }
+</style>
+  <script>
+    function makeMove(row, col, lay) {
+      let cell = document.getElementById(`cell-${row}-${col}-${lay}`);
+      if (cell.classList.contains("cell-not-clickable")) {
+        // Wenn die Zelle bereits besetzt ist, führen Sie keine Aktion aus
+        console.log("Zelle ist bereits besetzt");
+        return;
+      }
+      // Senden der Spieleraktion an den Flask-Server
+      fetch("/make_move", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ row: row, col: col, lay: lay }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          // Hier können Sie die Antwort des Servers verarbeiten
+          console.log(data);
+        });
+
+      setTimeout(300);
+      updateBoard();
+      setTimeout(300);
+      updateBoard();
+    }
+    function startGame() {
+      fetch("/start_game", { method: "GET" })
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data.message);
+          // Hier könnten Sie das Spielbrett initialisieren oder anzeigen
+        });
+      setTimeout(300);
+      updateBoard();
+    }
+
+    function updateBoard() {
+      fetch("/get_game_status")
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.status === "success") {
+            let board = data.board;
+            for (let i = 0; i < board.length; i++) {
+              for (let j = 0; j < board[i].length; j++) {
+                for (let k = 0; k < board[i][j].length; k++) {
+                  let cell = document.getElementById(`cell-${i}-${j}-${k}`);
+                  if (cell) {
+                    // Setzen Sie die Farbe basierend auf dem Wert
+                    switch (board[i][j][k]) {
+                      case 1:
+                        cell.className =
+                          "bg-red-500 h-12 w-12 mb-4 cursor-pointer";
+                        break;
+                      case -1:
+                        cell.className =
+                          "bg-blue-500 h-12 w-12 mb-4 cursor-pointer";
+                        break;
+                      default:
+                        cell.className =
+                          "bg-gray-500 h-12 w-12 mb-4 cursor-pointer";
+                    }
+                    if (board[i][j][k] !== 0.0) {
+                        cell.classList.add('cell-not-clickable');
+                    } else {
+                        cell.classList.remove('cell-not-clickable');
+                    }
+                  }
+                }
+              }
+            }
+
+          } 
+          else {
+            console.error("Fehler beim Abrufen des Spielstatus:", data.message);
+          }
+        });
+    }
+  </script>
+
+</html>
