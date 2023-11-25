@@ -33,20 +33,33 @@ def make_move():
     if st is None:
         return jsonify({'status': 'error', 'message': 'Spiel wurde noch nicht gestartet'})
 
-    if st.isWaiting:
-        data = request.get_json()
-        row = data['row']
-        col = data['col']
-        lay = data['lay']
-        st.play2((row, col, lay))  # Verarbeitung des menschlichen Zugs
+    data = request.get_json()
+    row = data['row']
+    col = data['col']
+    lay = data['lay']
 
-        if not st.isEnd and not st.isWaiting:
-            # Computer spielt direkt nach dem menschlichen Spieler
-            st.play2(None)  # Computer benötigt keine playerAction
+    # Verarbeitung des menschlichen Zugs
+    game_status, winner = st.play2((row, col, lay))
+    if game_status in ['win', 'tie']:
+        return jsonify({
+            'status': 'success',
+            'board': st.board.tolist(),
+            'game_status': game_status,
+            'winner': winner
+        })
 
-        return jsonify({'status': 'success', 'board': st.board.tolist()})
-    else:
-        return jsonify({'status': 'waiting', 'message': 'Warten auf den nächsten Zug'})
+    # Verarbeitung des Computerzugs
+    if not st.isWaiting:
+        game_status, winner = st.play2(None)  # Annahme: Der Computer benötigt keine playerAction
+
+    return jsonify({
+        'status': 'success',
+        'board': st.board.tolist(),
+        'game_status': game_status,
+        'winner': winner
+    })
+
+
 
    
 @app.route('/get_game_status')
@@ -215,15 +228,15 @@ class State:
         # Überprüfen, ob das Spiel zu Ende ist
         win = self.winner()
         if win is not None:
-            if win == 1:
-                print(self.p1.name, "wins!")
-            elif win == -1:
-                print(self.p2.name, "wins!")
-            else:
-                print("tie!")
             self.isWaiting = True
-            self.reset()
-            return
+            #self.reset()
+            if win == 1:
+                return 'win', self.p1.name  # Gewinner ist Player 1
+            elif win == -1:
+                return 'win', self.p2.name  # Gewinner ist Player 2
+            else:
+                return 'tie', None  # Unentschieden
+        return 'continue', None  # Spiel wird fortgesetzt
 
                 
 
