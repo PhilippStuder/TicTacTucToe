@@ -247,31 +247,153 @@ class Player:
         return boardHash
     
 
-    
-    
-    def MonteCarloTreeSearch(self, current_board, positions, symbol, depth, current_depth=0):
-        while current_depth < depth:
-            next_board = current_board.copy()        
-            for i in positions:
-                positions=positions.pop()
-                next_board[i] = symbol
-                tempwinner=self.winner(next_board)
-                if tempwinner==symbol:
-                    i+=1
-                elif tempwinner==0:
-                    i-=0.01
-                if not tempwinner:
-                    symbol*=-1
-                    current_depth+=1
-                    self.MonteCarloTreeSearch(current_board, positions, symbol,3)
+    def winner(self, board=None):
 
-        
-        return 1     
+        if not board.any():
+            board=self.board
+        # vertical
+        for x in range(BOARD_ROWS):
+            for y in range(BOARD_COLS):
+                if sum(board[x, y, :]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, y, :]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal y
+        for x in range(BOARD_ROWS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[x, :, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, :, z]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal x
+        for y in range(BOARD_COLS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[:, y, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[:, y, z]) == -4:
+                    self.isEnd = True
+                    return -1
 
+        # Diagonals from cube corner to cube corner
+        diag_sum1 = sum([board[i, i, i] for i in range(BOARD_COLS)])
+        diag_sum2 = sum([board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
+        diag_sum3 = sum([board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum4 = sum([board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
         
+        if any(val == 4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return -1
+
+        # Diagonals from cube edge to cube edge (24 of them)
+        diag_sums = []
+        for i in range(BOARD_COLS):
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+
+        if any(val == 4 for val in diag_sums):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in diag_sums):
+            self.isEnd = True
+            return -1
+
+        # tie
+        # no available positions
+        # if len(self.availablePositions()) == 0:
+        #     print("tie")
+        #     print(len(self.availablePositions()))
+        #     self.isEnd = True
+        #     return 0
+
+        # not end
+        self.isEnd = False
+        return None
+
+    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=1, current_depth=0):
+        current_depth+=1
+        symbol*=-1
+        #print(current_depth, "current")  
+        next_board = current_board.copy()
+        #need parentloop with parent tuple to write value for parenttuple into dic      
+        for i in positions:
+            print(i, "loop running")
+            positions2=positions.copy()
+            positions2.pop(0)
+            print(len(positions2))
+            #print(i, "i", symbol)
+            next_board[i] = symbol
+            #print(next_board)
+            tempwinner=self.winner(next_board)
+            #print(tempwinner)
+            if tempwinner==symbol:
+            #    print("test")
+                print("success")
+                positionsdic[i]+=symbol*parentsymbol
+            elif tempwinner==0:
+             #   print("test")
+                i-=0.01
+            if tempwinner==None:
+                if current_depth <= depth:
+                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, current_depth=current_depth, positionsdic=positionsdic)
+            next_board = current_board.copy()
+
+    
+    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=1, current_depth=0):
+        current_depth+=1
+        symbol*=-1
+        #print(current_depth, "current")  
+        next_board = current_board.copy()
+        #need parentloop with parent tuple to write value for parenttuple into dic      
+        for i in positions:
+            print(i, "loop running")
+            positions2=positions.copy()
+            positions2.pop(0)
+            print(len(positions2))
+            #print(i, "i", symbol)
+            next_board[i] = symbol
+            #print(next_board)
+            tempwinner=self.winner(next_board)
+            #print(tempwinner)
+            if tempwinner==symbol:
+            #    print("test")
+                print("success")
+                positionsdic[i]+=symbol*parentsymbol
+            elif tempwinner==0:
+             #   print("test")
+                i-=0.01
+            if tempwinner==None:
+                if current_depth <= depth:
+                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, current_depth=current_depth, positionsdic=positionsdic)
+            next_board = current_board.copy()
+        
+        print(current_depth, "current END")
+        for key, value in positionsdic.items():
+                        if value >= min(positionsdic.values()):
+                            #print(positionsdic)
+                            print(key)
+                            return key
+        print(positionsdic)       
+        x=random.choice(positions)
+        print("random", x)    
+        return x      
 
     def chooseAction(self, positions, current_board, symbol):
-        action=self.MonteCarloTreeSearch(current_board, positions, symbol,3)
+        my_dict = {key: 0 for key in positions}
+
+        action=self.MonteCarloTreeSearch(current_board, positions, -symbol, symbol, positionsdic=my_dict)
+        return action
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
                 if (sum(current_board[x, y, :])) == 3 * symbol:
