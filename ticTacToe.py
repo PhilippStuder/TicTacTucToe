@@ -8,6 +8,7 @@ app = Flask(__name__)
 BOARD_ROWS = 4
 BOARD_COLS = 4
 BOARD_LAYERS = 4
+MOVECOUNT=0
 
 @app.route('/')
 def index():
@@ -141,6 +142,8 @@ class State:
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
+        global MOVECOUNT
+        MOVECOUNT=0
     
     def play(self, rounds=100):
         
@@ -194,11 +197,13 @@ class State:
     
     # play with human
     def play2(self):
+        global MOVECOUNT
         self.showBoard()
         while not self.isEnd:
             # Player 1
             positions = self.availablePositions()
             p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
+            MOVECOUNT+=1
             # take action and upate board state
             self.updateState(p1_action)
             self.showBoard()
@@ -216,7 +221,7 @@ class State:
                 # Player 2
                 positions = self.availablePositions()
                 p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
-
+                MOVECOUNT+=1
                 self.updateState(p2_action)
                 self.showBoard()
                 win = self.winner()
@@ -321,79 +326,50 @@ class Player:
         self.isEnd = False
         return None
 
-    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=1, current_depth=0):
+    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=2, current_depth=0):
         current_depth+=1
-        symbol*=-1
-        #print(current_depth, "current")  
-        next_board = current_board.copy()
-        #need parentloop with parent tuple to write value for parenttuple into dic      
+        symbol*=-1 
+        next_board = current_board.copy()     
         for i in positions:
-            print(i, "loop running")
+            print(i)
             positions2=positions.copy()
-            positions2.pop(0)
-            print(len(positions2))
-            #print(i, "i", symbol)
+            positions2.remove(i)
             next_board[i] = symbol
-            #print(next_board)
-            tempwinner=self.winner(next_board)
-            #print(tempwinner)
-            if tempwinner==symbol:
-            #    print("test")
-                print("success")
-                positionsdic[i]+=symbol*parentsymbol
-            elif tempwinner==0:
-             #   print("test")
-                i-=0.01
-            if tempwinner==None:
-                if current_depth <= depth:
-                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, current_depth=current_depth, positionsdic=positionsdic)
+            self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
             next_board = current_board.copy()
+
+        # for key, value in positionsdic.items():
+        #                 if value >= max(positionsdic.values()):
+        #                     print(positionsdic)
+        #                     print(key)
+        #                     return key
+        print(positionsdic)    
+        return positionsdic
 
     
-    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=1, current_depth=0):
+    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, i, positionsdic, depth, current_depth=0):
         current_depth+=1
-        symbol*=-1
-        #print(current_depth, "current")  
-        next_board = current_board.copy()
-        #need parentloop with parent tuple to write value for parenttuple into dic      
-        for i in positions:
-            print(i, "loop running")
+        symbol*=-1  
+        next_board = current_board.copy()     
+        for j in positions:
             positions2=positions.copy()
-            positions2.pop(0)
-            print(len(positions2))
-            #print(i, "i", symbol)
-            next_board[i] = symbol
-            #print(next_board)
+            positions2.remove(j)
+            
+            next_board[j] = symbol
             tempwinner=self.winner(next_board)
-            #print(tempwinner)
             if tempwinner==symbol:
-            #    print("test")
-                print("success")
                 positionsdic[i]+=symbol*parentsymbol
-            elif tempwinner==0:
-             #   print("test")
-                i-=0.01
+            #elif tempwinner==0:
+                
             if tempwinner==None:
                 if current_depth <= depth:
-                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, current_depth=current_depth, positionsdic=positionsdic)
-            next_board = current_board.copy()
-        
-        print(current_depth, "current END")
-        for key, value in positionsdic.items():
-                        if value >= min(positionsdic.values()):
-                            #print(positionsdic)
-                            print(key)
-                            return key
-        print(positionsdic)       
-        x=random.choice(positions)
-        print("random", x)    
-        return x      
+                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
+            next_board = current_board.copy()      
 
     def chooseAction(self, positions, current_board, symbol):
-        my_dict = {key: 0 for key in positions}
-
-        action=self.MonteCarloTreeSearch(current_board, positions, -symbol, symbol, positionsdic=my_dict)
-        return action
+        global MOVECOUNT
+        print(MOVECOUNT)
+        
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
                 if (sum(current_board[x, y, :])) == 3 * symbol:
@@ -605,6 +581,16 @@ class Player:
                         return action
 
         ####################################################################
+        if MOVECOUNT>=7:
+            my_dict = {key: 0 for key in positions}
+
+            positionsdic=self.Parent(current_board, positions, -symbol, symbol, positionsdic=my_dict)
+            templist=[]
+            for key, value in positionsdic.items():
+                        if value >= max(positionsdic.values()):
+                            templist.append(key)
+                            
+            positions=templist
                                                                                       
         if np.random.uniform(0, 1) <= self.exp_rate:
             idx = np.random.choice(len(positions))
