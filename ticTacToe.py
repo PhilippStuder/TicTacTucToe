@@ -146,6 +146,7 @@ class State:
         MOVECOUNT=0
     
     def play(self, rounds=100):
+        global MOVECOUNT
         
 
         for i in range(rounds):
@@ -163,6 +164,7 @@ class State:
                 # Player 1
                 positions = self.availablePositions()
                 p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
+                MOVECOUNT+=1
                 # take action and upate board state
                 self.updateState(p1_action)
                 board_hash = self.getHash()
@@ -182,6 +184,7 @@ class State:
                     # Player 2
                     positions = self.availablePositions()
                     p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
+                    MOVECOUNT+=1
                     self.updateState(p2_action)
                     board_hash = self.getHash()
                     self.p2.addState(board_hash)
@@ -829,24 +832,24 @@ class HumanPlayer:
 
 if __name__ == "__main__":
     # training
-    # p1 = Player("p1")
-    # #p1.loadPolicy("policy_p1")
-    # p2 = Player("p2")
-    # #p2.loadPolicy("policy_p2")
+    p1 = Player("p1")
+    #p1.loadPolicy("policy_p1")
+    p2 = Player("p2")
+    #p2.loadPolicy("policy_p2")
 
-    # st = State(p1, p2)
-    # print("training...")
-    # st.play(10000)
+    st = State(p1, p2)
+    print("training...")
+    st.play(10)
 
-    # p1.savePolicy()
-    # p2.savePolicy()
-    # print("saved successfully")
+    p1.savePolicy()
+    p2.savePolicy()
+    print("saved successfully")
 
     # play with human
-    p1 = Player("computer", exp_rate=0)
-    p1.loadPolicy("policy_p1")
+    # p1 = Player("computer", exp_rate=0)
+    # p1.loadPolicy("policy_p1")
 
-    p2 = HumanPlayer("human")
+    # p2 = HumanPlayer("human")
 
-    st = State(p2, p1)
-    st.play2()
+    # st = State(p2, p1)
+    # st.play2()
