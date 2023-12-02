@@ -2,6 +2,8 @@ import numpy as np
 import pickle
 import random
 from flask import Flask, render_template, request, jsonify
+import concurrent.futures
+from multiprocessing import Manager
 
 app = Flask(__name__)
 
@@ -329,17 +331,99 @@ class Player:
         self.isEnd = False
         return None
 
-    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=2, current_depth=0):
+    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=3, current_depth=0):
         current_depth+=1
         symbol*=-1 
-        next_board = current_board.copy()     
-        for i in positions:
-            print(i)
-            positions2=positions.copy()
-            positions2.remove(i)
-            next_board[i] = symbol
-            self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
-            next_board = current_board.copy()
+        next_board = current_board.copy()
+        with Manager() as manager:
+            shared_dict = manager.dict(positionsdic)
+
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                futures = []
+                for i in positions:
+                    positions2 = positions.copy()
+                    positions2.remove(i)
+                    next_board = current_board.copy()
+                    next_board[i] = symbol
+
+                    futures.append(
+                        executor.submit(
+                            self.MonteCarloTreeSearch,
+                            next_board.copy(),
+                            positions2,
+                            symbol,
+                            parentsymbol,
+                            i,
+                            shared_dict,
+                            current_depth=current_depth,
+                            depth=depth
+                        )
+                    )
+
+                # Wait for all tasks to complete
+                concurrent.futures.wait(futures)
+
+            # Retrieve the final values from the shared dictionary
+            positionsdic = dict(shared_dict)
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     futures = []
+        #     for i in positions:
+        #         positions2 = positions.copy()
+        #         positions2.remove(i)
+        #         next_board[i] = symbol
+
+        #         # Submit each iteration as a separate task to the process pool
+        #         futures.append(
+        #             executor.submit(
+        #                 self.MonteCarloTreeSearch, 
+        #                 next_board.copy(), 
+        #                 positions2, 
+        #                 symbol, 
+        #                 parentsymbol, 
+        #                 i,
+        #                 current_depth=current_depth,
+        #                 depth=depth, 
+        #                 positionsdic=positionsdic
+        #             )
+        #         )
+        #         next_board = current_board.copy()
+
+        #     # Wait for all tasks to complete
+        #     concurrent.futures.wait(futures)
+
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     futures = []
+        #     for i in positions:
+        #         positions2 = positions.copy()
+        #         positions2.remove(i)
+        #         next_board[i] = symbol
+
+        #         # Submit each iteration as a separate task to the thread pool
+        #         futures.append(
+        #             executor.submit(
+        #                 self.MonteCarloTreeSearch, 
+        #                 next_board.copy(), 
+        #                 positions2, 
+        #                 symbol, 
+        #                 parentsymbol, 
+        #                 i, 
+        #                 current_depth=current_depth,
+        #                 depth=depth, 
+        #                 positionsdic=positionsdic
+        #             )
+        #         )
+        #         next_board = current_board.copy()
+
+        #     # Wait for all tasks to complete
+        #     concurrent.futures.wait(futures)
+
+        # for i in positions:
+        #     print(i)
+        #     positions2=positions.copy()
+        #     positions2.remove(i)
+        #     next_board[i] = symbol
+        #     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
+        #     next_board = current_board.copy()
 
         # for key, value in positionsdic.items():
         #                 if value >= max(positionsdic.values()):
@@ -584,7 +668,7 @@ class Player:
                         return action
 
         ####################################################################
-        if MOVECOUNT>=7:
+        if MOVECOUNT>=0:
             my_dict = {key: 0 for key in positions}
 
             positionsdic=self.Parent(current_board, positions, -symbol, symbol, positionsdic=my_dict)
@@ -832,24 +916,24 @@ class HumanPlayer:
 
 if __name__ == "__main__":
     # training
-    p1 = Player("p1")
-    #p1.loadPolicy("policy_p1")
-    p2 = Player("p2")
-    #p2.loadPolicy("policy_p2")
+    # p1 = Player("p1")
+    # #p1.loadPolicy("policy_p1")
+    # p2 = Player("p2")
+    # #p2.loadPolicy("policy_p2")
 
-    st = State(p1, p2)
-    print("training...")
-    st.play(10)
+    # st = State(p1, p2)
+    # print("training...")
+    # st.play(1)
 
-    p1.savePolicy()
-    p2.savePolicy()
-    print("saved successfully")
+    # p1.savePolicy()
+    # p2.savePolicy()
+    # print("saved successfully")
 
     # play with human
-    # p1 = Player("computer", exp_rate=0)
-    # p1.loadPolicy("policy_p1")
+    p1 = Player("computer", exp_rate=0)
+    p1.loadPolicy("policy_p1")
 
-    # p2 = HumanPlayer("human")
+    p2 = HumanPlayer("human")
 
-    # st = State(p2, p1)
-    # st.play2()
+    st = State(p1, p2)
+    st.play2()
