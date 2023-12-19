@@ -242,7 +242,7 @@ class State:
         win = self.winner()
         if win is not None:
             self.isWaiting = True
-            #self.reset()
+            self.reset()
             if win == 1:
                 return 'win', self.p1.name  # Gewinner ist Player 1
             elif win == -1:
@@ -353,7 +353,7 @@ class Player:
         with Manager() as manager:
             shared_dict = manager.dict(positionsdic)
 
-            with concurrent.futures.ProcessPoolExecutor() as executor:
+            with concurrent.futures.ProcessPoolExecutor(19) as executor:
                 futures = []
                 for i in positions:
                     positions2 = positions.copy()
@@ -380,71 +380,7 @@ class Player:
 
             # Retrieve the final values from the shared dictionary
             positionsdic = dict(shared_dict)
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     futures = []
-        #     for i in positions:
-        #         positions2 = positions.copy()
-        #         positions2.remove(i)
-        #         next_board[i] = symbol
 
-        #         # Submit each iteration as a separate task to the process pool
-        #         futures.append(
-        #             executor.submit(
-        #                 self.MonteCarloTreeSearch, 
-        #                 next_board.copy(), 
-        #                 positions2, 
-        #                 symbol, 
-        #                 parentsymbol, 
-        #                 i,
-        #                 current_depth=current_depth,
-        #                 depth=depth, 
-        #                 positionsdic=positionsdic
-        #             )
-        #         )
-        #         next_board = current_board.copy()
-
-        #     # Wait for all tasks to complete
-        #     concurrent.futures.wait(futures)
-
-        # with concurrent.futures.ThreadPoolExecutor() as executor:
-        #     futures = []
-        #     for i in positions:
-        #         positions2 = positions.copy()
-        #         positions2.remove(i)
-        #         next_board[i] = symbol
-
-        #         # Submit each iteration as a separate task to the thread pool
-        #         futures.append(
-        #             executor.submit(
-        #                 self.MonteCarloTreeSearch, 
-        #                 next_board.copy(), 
-        #                 positions2, 
-        #                 symbol, 
-        #                 parentsymbol, 
-        #                 i, 
-        #                 current_depth=current_depth,
-        #                 depth=depth, 
-        #                 positionsdic=positionsdic
-        #             )
-        #         )
-        #         next_board = current_board.copy()
-
-        #     # Wait for all tasks to complete
-        #     concurrent.futures.wait(futures)
-
-        # for i in positions:
-        #     print(i)
-        #     positions2=positions.copy()
-        #     positions2.remove(i)
-        #     next_board[i] = symbol
-        #     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
-        #     next_board = current_board.copy()
-
-        # for key, value in positionsdic.items():
-        #                 if value >= max(positionsdic.values()):
-        #                     print(positionsdic)
-        #                     print(key)
-        #                     return key
         print(positionsdic)    
         return positionsdic
 
@@ -459,6 +395,9 @@ class Player:
             
             next_board[j] = symbol
             tempwinner=self.winner(next_board)
+            if tempwinner==parentsymbol*(-1):
+                positionsdic[i]+=-64
+                break
             if tempwinner==symbol:
                 positionsdic[i]+=symbol*parentsymbol
             #elif tempwinner==0:
