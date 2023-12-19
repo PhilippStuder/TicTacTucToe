@@ -224,6 +224,7 @@ class State:
             print("computer spielt")
             positions = self.availablePositions()
             p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol, playerAction)
+            MOVECOUNT+=1
             self.updateState(p1_action)
             self.showBoard()
             self.isWaiting = True  # Warten auf den Zug des menschlichen Spielers
@@ -232,6 +233,7 @@ class State:
             print("mensch spielt")
             positions = self.availablePositions()
             p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol, playerAction)
+            MOVECOUNT+=1
             self.updateState(p2_action)
             self.showBoard()
             self.isWaiting = False  # Computer ist wieder an der Reihe
