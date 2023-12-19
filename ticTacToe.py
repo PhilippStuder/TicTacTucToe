@@ -468,7 +468,7 @@ class Player:
                     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
             next_board = current_board.copy()      
 
-    def chooseAction(self, positions, current_board, symbol):
+    def chooseAction(self, positions, current_board, symbol, playerAction):
         global MOVECOUNT
         print(MOVECOUNT)
         
