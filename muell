@@ -1,0 +1,72 @@
+    def winner(self, board=None):
+        if board:
+            
+        # vertical
+        for x in range(BOARD_ROWS):
+            for y in range(BOARD_COLS):
+                if sum(board[x, y, :]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, y, :]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal y
+        for x in range(BOARD_ROWS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[x, :, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, :, z]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal x
+        for y in range(BOARD_COLS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[:, y, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[:, y, z]) == -4:
+                    self.isEnd = True
+                    return -1
+
+        # Diagonals from cube corner to cube corner
+        diag_sum1 = sum([board[i, i, i] for i in range(BOARD_COLS)])
+        diag_sum2 = sum([board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
+        diag_sum3 = sum([board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum4 = sum([board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        
+        if any(val == 4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return -1
+
+        # Diagonals from cube edge to cube edge (24 of them)
+        diag_sums = []
+        for i in range(BOARD_COLS):
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+
+        if any(val == 4 for val in diag_sums):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in diag_sums):
+            self.isEnd = True
+            return -1
+
+        # tie
+        # no available positions
+        if len(self.availablePositions()) == 0:
+            print("tie")
+            print(len(self.availablePositions()))
+            self.isEnd = True
+            return 0
+
+        # not end
+        self.isEnd = False
+        return None

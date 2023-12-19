@@ -2,13 +2,19 @@ import numpy as np
 import pickle
 import random
 from flask import Flask, render_template, request, jsonify
+import concurrent.futures
+from multiprocessing import Manager
+
+app = Flask(__name__)
 
 BOARD_ROWS = 4
 BOARD_COLS = 4
 BOARD_LAYERS = 4
+MOVECOUNT=0
 st= None
 
 app = Flask(__name__)
+
 
 @app.route('/')
 def index():
@@ -80,7 +86,6 @@ class State:
         self.isEnd = False
         self.isWaiting = False
         self.boardHash = None
-        # init p1 plays first
         self.playerSymbol = 1
         self.states = []
 
@@ -92,40 +97,43 @@ class State:
         self.boardHash = str(self.board.reshape(BOARD_COLS*BOARD_ROWS*BOARD_LAYERS))
         return self.boardHash
     
-    def winner(self):
+    def winner(self, board=None):
+
+        if not board:
+            board=self.board
         # vertical
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
-                if sum(self.board[x, y, :]) == 4:
+                if sum(board[x, y, :]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[x, y, :]) == -4:
+                if sum(board[x, y, :]) == -4:
                     self.isEnd = True
                     return -1
         # horizontal y
         for x in range(BOARD_ROWS):
             for z in range(BOARD_LAYERS):
-                if sum(self.board[x, :, z]) == 4:
+                if sum(board[x, :, z]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[x, :, z]) == -4:
+                if sum(board[x, :, z]) == -4:
                     self.isEnd = True
                     return -1
         # horizontal x
         for y in range(BOARD_COLS):
             for z in range(BOARD_LAYERS):
-                if sum(self.board[:, y, z]) == 4:
+                if sum(board[:, y, z]) == 4:
                     self.isEnd = True
                     return 1
-                if sum(self.board[:, y, z]) == -4:
+                if sum(board[:, y, z]) == -4:
                     self.isEnd = True
                     return -1
 
         # Diagonals from cube corner to cube corner
-        diag_sum1 = sum([self.board[i, i, i] for i in range(BOARD_COLS)])
-        diag_sum2 = sum([self.board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
-        diag_sum3 = sum([self.board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
-        diag_sum4 = sum([self.board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum1 = sum([board[i, i, i] for i in range(BOARD_COLS)])
+        diag_sum2 = sum([board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
+        diag_sum3 = sum([board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum4 = sum([board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
         
         if any(val == 4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
             self.isEnd = True
@@ -137,12 +145,12 @@ class State:
         # Diagonals from cube edge to cube edge (24 of them)
         diag_sums = []
         for i in range(BOARD_COLS):
-            diag_sums.append(sum([self.board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
-            diag_sums.append(sum([self.board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
 
         if any(val == 4 for val in diag_sums):
             self.isEnd = True
@@ -202,10 +210,13 @@ class State:
         self.boardHash = None
         self.isEnd = False
         self.playerSymbol = 1
+        global MOVECOUNT
+        MOVECOUNT=0
     
 
         
     def play2(self, playerAction):
+        global MOVECOUNT
         print("************* ACHTUNG!!! **********************")
 
         if not self.isWaiting:
@@ -258,7 +269,207 @@ class Player:
         boardHash = str(board.reshape(BOARD_COLS*BOARD_ROWS*BOARD_LAYERS))
         return boardHash
     
-    def chooseAction(self, positions, current_board, symbol, playerAction):
+
+    def winner(self, board=None):
+
+        if not board.any():
+            board=self.board
+        # vertical
+        for x in range(BOARD_ROWS):
+            for y in range(BOARD_COLS):
+                if sum(board[x, y, :]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, y, :]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal y
+        for x in range(BOARD_ROWS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[x, :, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[x, :, z]) == -4:
+                    self.isEnd = True
+                    return -1
+        # horizontal x
+        for y in range(BOARD_COLS):
+            for z in range(BOARD_LAYERS):
+                if sum(board[:, y, z]) == 4:
+                    self.isEnd = True
+                    return 1
+                if sum(board[:, y, z]) == -4:
+                    self.isEnd = True
+                    return -1
+
+        # Diagonals from cube corner to cube corner
+        diag_sum1 = sum([board[i, i, i] for i in range(BOARD_COLS)])
+        diag_sum2 = sum([board[i, BOARD_COLS - i - 1, i] for i in range(BOARD_COLS)])
+        diag_sum3 = sum([board[i, i, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        diag_sum4 = sum([board[i, BOARD_COLS - i - 1, BOARD_LAYERS - i - 1] for i in range(BOARD_COLS)])
+        
+        if any(val == 4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in [diag_sum1, diag_sum2, diag_sum3, diag_sum4]):
+            self.isEnd = True
+            return -1
+
+        # Diagonals from cube edge to cube edge (24 of them)
+        diag_sums = []
+        for i in range(BOARD_COLS):
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[i, j, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[j, i, k] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS), range(BOARD_LAYERS))]))
+            diag_sums.append(sum([board[k, j, i] for j, k in zip(range(BOARD_COLS - 1, -1, -1), range(BOARD_LAYERS))]))
+
+        if any(val == 4 for val in diag_sums):
+            self.isEnd = True
+            return 1
+        if any(val == -4 for val in diag_sums):
+            self.isEnd = True
+            return -1
+
+        # tie
+        # no available positions
+        # if len(self.availablePositions()) == 0:
+        #     print("tie")
+        #     print(len(self.availablePositions()))
+        #     self.isEnd = True
+        #     return 0
+
+        # not end
+        self.isEnd = False
+        return None
+
+    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=3, current_depth=0):
+        current_depth+=1
+        symbol*=-1 
+        next_board = current_board.copy()
+        with Manager() as manager:
+            shared_dict = manager.dict(positionsdic)
+
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                futures = []
+                for i in positions:
+                    positions2 = positions.copy()
+                    positions2.remove(i)
+                    next_board = current_board.copy()
+                    next_board[i] = symbol
+
+                    futures.append(
+                        executor.submit(
+                            self.MonteCarloTreeSearch,
+                            next_board.copy(),
+                            positions2,
+                            symbol,
+                            parentsymbol,
+                            i,
+                            shared_dict,
+                            current_depth=current_depth,
+                            depth=depth
+                        )
+                    )
+
+                # Wait for all tasks to complete
+                concurrent.futures.wait(futures)
+
+            # Retrieve the final values from the shared dictionary
+            positionsdic = dict(shared_dict)
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     futures = []
+        #     for i in positions:
+        #         positions2 = positions.copy()
+        #         positions2.remove(i)
+        #         next_board[i] = symbol
+
+        #         # Submit each iteration as a separate task to the process pool
+        #         futures.append(
+        #             executor.submit(
+        #                 self.MonteCarloTreeSearch, 
+        #                 next_board.copy(), 
+        #                 positions2, 
+        #                 symbol, 
+        #                 parentsymbol, 
+        #                 i,
+        #                 current_depth=current_depth,
+        #                 depth=depth, 
+        #                 positionsdic=positionsdic
+        #             )
+        #         )
+        #         next_board = current_board.copy()
+
+        #     # Wait for all tasks to complete
+        #     concurrent.futures.wait(futures)
+
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     futures = []
+        #     for i in positions:
+        #         positions2 = positions.copy()
+        #         positions2.remove(i)
+        #         next_board[i] = symbol
+
+        #         # Submit each iteration as a separate task to the thread pool
+        #         futures.append(
+        #             executor.submit(
+        #                 self.MonteCarloTreeSearch, 
+        #                 next_board.copy(), 
+        #                 positions2, 
+        #                 symbol, 
+        #                 parentsymbol, 
+        #                 i, 
+        #                 current_depth=current_depth,
+        #                 depth=depth, 
+        #                 positionsdic=positionsdic
+        #             )
+        #         )
+        #         next_board = current_board.copy()
+
+        #     # Wait for all tasks to complete
+        #     concurrent.futures.wait(futures)
+
+        # for i in positions:
+        #     print(i)
+        #     positions2=positions.copy()
+        #     positions2.remove(i)
+        #     next_board[i] = symbol
+        #     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
+        #     next_board = current_board.copy()
+
+        # for key, value in positionsdic.items():
+        #                 if value >= max(positionsdic.values()):
+        #                     print(positionsdic)
+        #                     print(key)
+        #                     return key
+        print(positionsdic)    
+        return positionsdic
+
+    
+    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, i, positionsdic, depth, current_depth=0):
+        current_depth+=1
+        symbol*=-1  
+        next_board = current_board.copy()     
+        for j in positions:
+            positions2=positions.copy()
+            positions2.remove(j)
+            
+            next_board[j] = symbol
+            tempwinner=self.winner(next_board)
+            if tempwinner==symbol:
+                positionsdic[i]+=symbol*parentsymbol
+            #elif tempwinner==0:
+                
+            if tempwinner==None:
+                if current_depth <= depth:
+                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
+            next_board = current_board.copy()      
+
+    def chooseAction(self, positions, current_board, symbol):
+        global MOVECOUNT
+        print(MOVECOUNT)
+        
         for x in range(BOARD_ROWS):
             for y in range(BOARD_COLS):
                 if (sum(current_board[x, y, :])) == 3 * symbol:
@@ -470,6 +681,16 @@ class Player:
                         return action
 
         ####################################################################
+        if MOVECOUNT>=0:
+            my_dict = {key: 0 for key in positions}
+
+            positionsdic=self.Parent(current_board, positions, -symbol, symbol, positionsdic=my_dict)
+            templist=[]
+            for key, value in positionsdic.items():
+                        if value >= max(positionsdic.values()):
+                            templist.append(key)
+                            
+            positions=templist
                                                                                       
         if np.random.uniform(0, 1) <= self.exp_rate:
             idx = np.random.choice(len(positions))
@@ -714,6 +935,20 @@ class HumanPlayer:
 
 
 if __name__ == "__main__":
+    # training
+    # p1 = Player("p1")
+    # #p1.loadPolicy("policy_p1")
+    # p2 = Player("p2")
+    # #p2.loadPolicy("policy_p2")
+
+    # st = State(p1, p2)
+    # print("training...")
+    # st.play(1)
+
+    # p1.savePolicy()
+    # p2.savePolicy()
+    # print("saved successfully")
+
     # play with human
 
 
