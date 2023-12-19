@@ -683,7 +683,7 @@ class Player:
                         return action
 
         ####################################################################
-        if MOVECOUNT>=0:
+        if MOVECOUNT>=7:
             my_dict = {key: 0 for key in positions}
 
             positionsdic=self.Parent(current_board, positions, -symbol, symbol, positionsdic=my_dict)
