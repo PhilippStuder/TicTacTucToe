@@ -11,10 +11,72 @@ BOARD_ROWS = 4
 BOARD_COLS = 4
 BOARD_LAYERS = 4
 MOVECOUNT=0
+st= None
+
+app = Flask(__name__)
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/start_game', methods=['GET'])
+def start_game():
+    global st  # Verwendung der globalen Variable
+    p1 = Player("computer", exp_rate=0)
+    p1.loadPolicy("policy_p1")
+
+    p2 = HumanPlayer("human")
+    st = State(p1, p2)  # Angenommen, p1 und p2 sind bereits definiert oder initialisiert
+    st.play2((0,0,0))
+    st.isWaiting = True
+    return jsonify({'status': 'success', 'message': 'Neues Spiel gestartet'})
+
+
+@app.route('/make_move', methods=['POST'])
+def make_move():
+    global st
+    if st is None:
+        return jsonify({'status': 'error', 'message': 'Spiel wurde noch nicht gestartet'})
+
+    data = request.get_json()
+    row = data['row']
+    col = data['col']
+    lay = data['lay']
+
+    # Verarbeitung des menschlichen Zugs
+    game_status, winner = st.play2((row, col, lay))
+    if game_status in ['win', 'tie']:
+        return jsonify({
+            'status': 'success',
+            'board': st.board.tolist(),
+            'game_status': game_status,
+            'winner': winner
+        })
+
+    # Verarbeitung des Computerzugs
+    if not st.isWaiting:
+        game_status, winner = st.play2(None)  # Annahme: Der Computer benötigt keine playerAction
+
+    return jsonify({
+        'status': 'success',
+        'board': st.board.tolist(),
+        'game_status': game_status,
+        'winner': winner
+    })
+
+
+
+   
+@app.route('/get_game_status')
+def get_game_status():
+    global st
+    if st is None:
+        return jsonify({'status': 'error', 'message': 'Spiel nicht gestartet'})
+    print("söösel", st.get_board_as_list())
+    print(jsonify({'status': 'success', 'board': st.get_board_as_list()}))
+    return jsonify({'status': 'success', 'board': st.get_board_as_list()})
+
 
 class State:
     def __init__(self, p1, p2):
@@ -22,9 +84,13 @@ class State:
         self.p1 = p1
         self.p2 = p2
         self.isEnd = False
+        self.isWaiting = False
         self.boardHash = None
         self.playerSymbol = 1
         self.states = []
+
+    def get_board_as_list(self):
+        return self.board.tolist()
     
     # get unique hash of current board state
     def getHash(self):
@@ -147,96 +213,45 @@ class State:
         global MOVECOUNT
         MOVECOUNT=0
     
-    def play(self, rounds=100):
-        global MOVECOUNT
+
         
-
-        for i in range(rounds):
-
-            if i%100 == 0:
-                print("Rounds {}".format(i))
-                p1.savePolicy()
-                p2.savePolicy()
-                print("saved")
-                p1.loadPolicy("policy_p1")
-                p2.loadPolicy("policy_p2")
-
-            while not self.isEnd:
-                
-                # Player 1
-                positions = self.availablePositions()
-                p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
-                MOVECOUNT+=1
-                # take action and upate board state
-                self.updateState(p1_action)
-                board_hash = self.getHash()
-                self.p1.addState(board_hash)
-                # check board status if it is end
-                self.states.append(board_hash)
-                
-                win = self.winner()
-                if win is not None:
-                    print("player1 wins", len(positions))
-                    self.p1.reset()
-                    self.p2.reset()
-                    self.reset()
-                    break
-
-                else:
-                    # Player 2
-                    positions = self.availablePositions()
-                    p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
-                    MOVECOUNT+=1
-                    self.updateState(p2_action)
-                    board_hash = self.getHash()
-                    self.p2.addState(board_hash)
-                    
-                    win = self.winner()
-                    if win is not None:
-                        print("player2 wins", len(positions))
-                        self.giveReward()
-                        self.p1.reset()
-                        self.p2.reset()
-                        self.reset()
-                        break
-    
-    # play with human
-    def play2(self):
+    def play2(self, playerAction):
         global MOVECOUNT
-        self.showBoard()
-        while not self.isEnd:
-            # Player 1
+        print("************* ACHTUNG!!! **********************")
+
+        if not self.isWaiting:
+            # Player 1 (Computer) macht einen Zug
+            print("computer spielt")
             positions = self.availablePositions()
-            p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)
+            p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol, playerAction)
             MOVECOUNT+=1
-            # take action and upate board state
             self.updateState(p1_action)
             self.showBoard()
-            # check board status if it is end
-            win = self.winner()
-            if win is not None:
-                if win == 1:
-                    print(self.p1.name, "wins!")
-                else:
-                    print("tie!")
-                self.reset()
-                break
+            self.isWaiting = True  # Warten auf den Zug des menschlichen Spielers
+        else:
+            # Player 2 (Mensch) macht einen Zug
+            print("mensch spielt")
+            positions = self.availablePositions()
+            p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol, playerAction)
+            MOVECOUNT+=1
+            self.updateState(p2_action)
+            self.showBoard()
+            self.isWaiting = False  # Computer ist wieder an der Reihe
 
+        # Überprüfen, ob das Spiel zu Ende ist
+        win = self.winner()
+        if win is not None:
+            self.isWaiting = True
+            self.reset()
+            if win == 1:
+                return 'win', self.p1.name  # Gewinner ist Player 1
+            elif win == -1:
+                return 'win', self.p2.name  # Gewinner ist Player 2
             else:
-                # Player 2
-                positions = self.availablePositions()
-                p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)
-                MOVECOUNT+=1
-                self.updateState(p2_action)
-                self.showBoard()
-                win = self.winner()
-                if win is not None:
-                    if win == -1:
-                        print(self.p2.name, "wins!")
-                    else:
-                        print("tie!")
-                    self.reset()
-                    break
+                return 'tie', None  # Unentschieden
+        return 'continue', None  # Spiel wird fortgesetzt
+
+                
 
     def showBoard(self):
         print("#########################")   
@@ -338,7 +353,7 @@ class Player:
         with Manager() as manager:
             shared_dict = manager.dict(positionsdic)
 
-            with concurrent.futures.ProcessPoolExecutor() as executor:
+            with concurrent.futures.ProcessPoolExecutor(19) as executor:
                 futures = []
                 for i in positions:
                     positions2 = positions.copy()
@@ -365,71 +380,7 @@ class Player:
 
             # Retrieve the final values from the shared dictionary
             positionsdic = dict(shared_dict)
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     futures = []
-        #     for i in positions:
-        #         positions2 = positions.copy()
-        #         positions2.remove(i)
-        #         next_board[i] = symbol
 
-        #         # Submit each iteration as a separate task to the process pool
-        #         futures.append(
-        #             executor.submit(
-        #                 self.MonteCarloTreeSearch, 
-        #                 next_board.copy(), 
-        #                 positions2, 
-        #                 symbol, 
-        #                 parentsymbol, 
-        #                 i,
-        #                 current_depth=current_depth,
-        #                 depth=depth, 
-        #                 positionsdic=positionsdic
-        #             )
-        #         )
-        #         next_board = current_board.copy()
-
-        #     # Wait for all tasks to complete
-        #     concurrent.futures.wait(futures)
-
-        # with concurrent.futures.ThreadPoolExecutor() as executor:
-        #     futures = []
-        #     for i in positions:
-        #         positions2 = positions.copy()
-        #         positions2.remove(i)
-        #         next_board[i] = symbol
-
-        #         # Submit each iteration as a separate task to the thread pool
-        #         futures.append(
-        #             executor.submit(
-        #                 self.MonteCarloTreeSearch, 
-        #                 next_board.copy(), 
-        #                 positions2, 
-        #                 symbol, 
-        #                 parentsymbol, 
-        #                 i, 
-        #                 current_depth=current_depth,
-        #                 depth=depth, 
-        #                 positionsdic=positionsdic
-        #             )
-        #         )
-        #         next_board = current_board.copy()
-
-        #     # Wait for all tasks to complete
-        #     concurrent.futures.wait(futures)
-
-        # for i in positions:
-        #     print(i)
-        #     positions2=positions.copy()
-        #     positions2.remove(i)
-        #     next_board[i] = symbol
-        #     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth, depth=depth, positionsdic=positionsdic)
-        #     next_board = current_board.copy()
-
-        # for key, value in positionsdic.items():
-        #                 if value >= max(positionsdic.values()):
-        #                     print(positionsdic)
-        #                     print(key)
-        #                     return key
         print(positionsdic)    
         return positionsdic
 
@@ -444,6 +395,9 @@ class Player:
             
             next_board[j] = symbol
             tempwinner=self.winner(next_board)
+            if tempwinner==parentsymbol*(-1):
+                positionsdic[i]+=-64
+                break
             if tempwinner==symbol:
                 positionsdic[i]+=symbol*parentsymbol
             #elif tempwinner==0:
@@ -453,7 +407,7 @@ class Player:
                     self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
             next_board = current_board.copy()      
 
-    def chooseAction(self, positions, current_board, symbol):
+    def chooseAction(self, positions, current_board, symbol, playerAction):
         global MOVECOUNT
         print(MOVECOUNT)
         
@@ -668,7 +622,7 @@ class Player:
                         return action
 
         ####################################################################
-        if MOVECOUNT>=0:
+        if MOVECOUNT>=7:
             my_dict = {key: 0 for key in positions}
 
             positionsdic=self.Parent(current_board, positions, -symbol, symbol, positionsdic=my_dict)
@@ -890,17 +844,24 @@ class HumanPlayer:
     def __init__(self, name):
         self.name = name
 
-    def chooseAction(self, positions, current_board, symbol):
+    def chooseAction(self, positions, current_board, symbol, playerAction):
         while True:
-                lay = int(input("Input your action lay:"))
-                row = int(input("Input your action row:"))
-                col = int(input("Input your action col:"))
-                action = (lay, row, col)
+                print("Es wird gespielt")
+                print(playerAction)
+                #lay = int(input("Input your action lay:"))
+                #row = int(input("Input your action row:"))
+                #col = int(input("Input your action col:"))
+                #action = (lay, row, col)
+                action = playerAction
 
                 if action in positions:
                     return action
+
                 else:
                     print("Invalid Input")
+                    st.isWaiting = True
+
+                action = None
 
     # append a hash state
     def addState(self, state):
@@ -930,10 +891,12 @@ if __name__ == "__main__":
     # print("saved successfully")
 
     # play with human
-    p1 = Player("computer", exp_rate=0)
-    p1.loadPolicy("policy_p1")
 
-    p2 = HumanPlayer("human")
 
-    st = State(p1, p2)
-    st.play2()
+    #st = State(p2, p1)
+    #test = f"Tim, {st.board}"
+    
+    #playerAction = (0, 0, 0) #Hier sollen die Daten aus dem UI eingespiesen werden für den nächsten Spielzug
+    #st.play2(playerAction)
+
+    app.run(debug=True)

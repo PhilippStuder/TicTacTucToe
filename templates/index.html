@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tic Tac Toe</title>
+    <link
+      href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <!-- Fügen Sie hier Ihren CSS-Code ein -->
+  </head>
+  <body>
+    <div class="p-12 text-center">
+      <h1 class="font-bold text-2xl">Tic Tac Tuc Toe</h1>
+      <div class="flex justify-center">
+      <div class="grid-container mx-auto hidden" id="game-board">
+        <!-- Grid 1 -->
+        <div class="grid grid-cols-4 gap-2 my-4 text-center">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-0-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-8 w-8 mb-4 cursor-pointer"
+              onclick="makeMove(0, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 2 -->
+        <div class="grid grid-cols-4 gap-2 my-4 text-center">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-1-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-8 w-8 mb-4 cursor-pointer"
+              onclick="makeMove(1, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 3 -->
+        <div class="grid grid-cols-4 gap-2 my-4 text-center">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-2-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-8 w-8 mb-4 cursor-pointer"
+              onclick="makeMove(2, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        <!-- Grid 4 -->
+        <div class="grid grid-cols-4 gap-2 my-4 text-center">
+          {% for i in range(4) %}
+          <div class="row">
+            {% for j in range(4) %}
+            <div
+              id="cell-3-{{ i }}-{{ j }}"
+              class="bg-gray-500 h-8 w-8 mb-4 cursor-pointer"
+              onclick="makeMove(3, {{ i }}, {{ j }})"
+            ></div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+      <button onclick="startGame()" id="start-button">Spiel starten</button>
+      <button onclick="startGame()" id="restart-button" class="hidden">Neu starten</button>
+    </div>
+  </body>
+  <style>
+    .cell-not-clickable {
+        pointer-events: none; /* Deaktiviert Klickereignisse */
+        opacity: 0.5; /* Macht die Zelle blasser */
+    }
+    .hidden {
+    display: none;
+  }
+  .cell-deactivated {
+        pointer-events: none; /* Deaktiviert Klickereignisse */
+        opacity: 0.5; /* Macht die Zelle blasser, um die Deaktivierung anzuzeigen */
+        cursor: not-allowed;
+    }
+  
+</style>
+  <script>
+
+let gameEnded = false;
+
+function makeMove(row, col, lay) {
+    if (gameEnded) return;
+    let cell = document.getElementById(`cell-${row}-${col}-${lay}`);
+    if (cell.classList.contains("cell-not-clickable")) {
+        console.log("Zelle ist bereits besetzt");
+        return;
+    }
+
+    fetch("/make_move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ row: row, col: col, lay: lay }),
+    })
+    .then((response) => response.json())
+    .then((data) => {
+        checkGameStatus(data); // Überprüfen des Spielstatus und Aktualisieren des Spielfelds
+    });
+}
+
+function checkGameStatus(data) {
+    // Aktualisieren Sie das Spielfeld, um den spielentscheidenden Zug anzuzeigen
+    updateBoard(data.board);
+
+    // Prüfen Sie dann, ob das Spiel beendet ist
+    if (data.game_status === 'win' || data.game_status === 'tie') {
+        let message = data.winner ? data.winner + ' gewinnt!' : 'Unentschieden!';
+        alert(message);
+        gameEnded = true; // Setzen Sie den Spielstatus auf beendet
+        disableGameBoard(); // Deaktivieren Sie das Spielfeld nach der Anzeige des Gewinners
+    }
+}
+
+
+function disableGameBoard() {
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            for (let k = 0; k < 4; k++) {
+                let cell = document.getElementById(`cell-${i}-${j}-${k}`);
+                if (cell) {
+                    cell.classList.add('cell-deactivated');
+                }
+            }
+        }
+    }
+}
+
+function resetGameBoard() {
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            for (let k = 0; k < 4; k++) {
+                let cell = document.getElementById(`cell-${i}-${j}-${k}`);
+                if (cell) {
+                    cell.classList.remove('cell-deactivated');
+                }
+            }
+        }
+    }
+}
+
+function startGame() {
+    fetch("/start_game", { method: "GET" })
+        .then((response) => response.json())
+        .then((data) => {
+            console.log(data.message);
+            document.getElementById("game-board").classList.remove("hidden");
+            document.getElementById("start-button").classList.add("hidden");
+            document.getElementById("restart-button").classList.remove("hidden");
+            gameEnded = false; // Zurücksetzen des Spielstatus
+            resetGameBoard(); // Setzen Sie das Spielfeld zurück
+            updateBoard(); // Aktualisieren Sie das Spielfeld
+        });
+}
+    function updateBoard() {
+      if (gameEnded) return
+      fetch("/get_game_status")
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.status === "success") {
+            let board = data.board;
+            for (let i = 0; i < board.length; i++) {
+              for (let j = 0; j < board[i].length; j++) {
+                for (let k = 0; k < board[i][j].length; k++) {
+                  let cell = document.getElementById(`cell-${i}-${j}-${k}`);
+                  if (cell) {
+                    // Setzen Sie die Farbe basierend auf dem Wert
+                    switch (board[i][j][k]) {
+                      case 1:
+                        cell.className =
+                          "bg-red-600 h-8 w-8 mb-2 cursor-pointer";
+                        break;
+                      case -1:
+                        cell.className =
+                          "bg-blue-600 h-8 w-8 mb-2 cursor-pointer";
+                        break;
+                      default:
+                        cell.className =
+                          "bg-gray-300 h-8 w-8 mb-2 cursor-pointer";
+                    }
+                    if (board[i][j][k] !== 0.0) {
+                        cell.classList.add('cell-not-clickable');
+                    } else {
+                        cell.classList.remove('cell-not-clickable');
+                    }
+                  }
+                }
+              }
+            }
+
+          } 
+          else {
+            console.error("Fehler beim Abrufen des Spielstatus:", data.message);
+          }
+        });
+    }
+  </script>
+
+</html>
