@@ -547,13 +547,13 @@ class Player:
                         return action
 
     
-    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=2, current_depth=0):
+    def Parent(self, current_board, positions, symbol, parentsymbol, positionsdic, depth=3, current_depth=0):
         current_depth+=1
         symbol*=-1 
         next_board = current_board.copy()
         with Manager() as manager:
             shared_dict = manager.dict(positionsdic)
-
+            terminator=manager.Event()
             with concurrent.futures.ProcessPoolExecutor(22) as executor:
                 futures = []
                 for i in positions:
@@ -573,7 +573,8 @@ class Player:
                             i,
                             shared_dict,
                             current_depth=current_depth,
-                            depth=depth
+                            depth=depth,
+                            terminator=terminator
                         )
                     )
 
@@ -587,20 +588,38 @@ class Player:
         return positionsdic
 
     
-    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, i, positionsdic, depth, current_depth=0, forced=False):
+    def MonteCarloTreeSearch(self, current_board, positions, symbol, parentsymbol, i, positionsdic, depth, terminator=None, current_depth=0, forced=False, try_force=False, forced_depth=0,enemy_forced=False):
+        #print(type(terminator),terminator)
+        # if terminator:
+        #     print("success",terminator)
+        #     return
         current_depth+=1
-        symbol*=-1  
+        symbol*=-1
+        reward=symbol  
         next_board = current_board.copy()
+        if symbol==parentsymbol:
+            reward=reward*1000
 
-        move=self.WinningMove(current_board.copy(), symbol)
-        if move:
-            print(i,"success3", symbol, current_depth)
-            positionsdic[i]+=64*parentsymbol*symbol
-            return
+        # move=self.WinningMove(current_board.copy(), symbol)
+        # if move:
+        #     print(i,"success3", symbol, current_depth)
+        #     positionsdic[i]+=64*parentsymbol*reward/(current_depth*current_depth)
+        #     exit()
+        #     return
 
         if self.countWinningMoves(current_board, -symbol)>=2:
-            #print("success1", current_depth)
-            positionsdic[i]+=-64*parentsymbol*symbol
+            print(i,"success1", -symbol, current_depth, parentsymbol*(-reward), try_force)
+            if not enemy_forced:
+                positionsdic[i]+=99999999999
+                print("success1############################################################################################")
+                #terminator=True
+                if terminator:
+                    terminator.set()
+            elif try_force:
+                positionsdic[i]+=parentsymbol*(-reward)
+            else:
+                positionsdic[i]+=parentsymbol*(-reward)/(current_depth*current_depth)
+            return
 
         if current_depth<=10:
             move=self.WinningMove(current_board.copy(), -symbol)        
@@ -611,16 +630,19 @@ class Player:
                 positions2.remove(move)
                 next_board[move]=symbol
                 #print(next_board)
-                self.MonteCarloTreeSearch(next_board.copy(), positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic, forced=True)
+                self.MonteCarloTreeSearch(next_board.copy(), positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic, forced=True, forced_depth=forced_depth, try_force=try_force, enemy_forced=enemy_forced,terminator=terminator)
             
             elif forced:
+                if symbol!=parentsymbol:
+                    enemy_forced=True
+                forced_depth+=1
                 #print(current_board,"success2", current_depth)
                 for j in positions:
                     positions2=positions.copy()
                     positions2.remove(j)
                     #print(next_board, current_depth)                
                     next_board[j] = symbol                
-                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
+                    self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic, try_force=True, forced_depth=forced_depth, enemy_forced=enemy_forced,terminator=terminator)
                     next_board = current_board.copy()
             else:
                 #print("success4")
@@ -631,7 +653,7 @@ class Player:
                         #print(next_board, current_depth)                
                         next_board[j] = symbol
                         
-                        self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic)
+                        self.MonteCarloTreeSearch(next_board, positions2, symbol, parentsymbol, i, current_depth=current_depth,depth=depth, positionsdic=positionsdic, forced_depth=forced_depth)
                         next_board = current_board.copy()      
 
     def chooseAction(self, positions, current_board, symbol, playerAction):
