@@ -608,14 +608,14 @@ class Player:
         #     return
 
         if self.countWinningMoves(current_board, -symbol)>=2:
-            print(i,"success1", -symbol, current_depth, parentsymbol*(-reward), try_force)
-            if not enemy_forced:
-                positionsdic[i]+=99999999999
-                print("success1############################################################################################")
-                #terminator=True
-                if terminator:
-                    terminator.set()
-            elif try_force:
+            #print(i,"success1", -symbol, current_depth, parentsymbol*(-reward), try_force)
+            # if not enemy_forced:
+            #     positionsdic[i]+=99999999999*parentsymbol*(reward)
+            #     print("success1############################################################################################")
+            #     #terminator=True
+            #     if terminator:
+            #         terminator.set()
+            if try_force:
                 positionsdic[i]+=parentsymbol*(-reward)
             else:
                 positionsdic[i]+=parentsymbol*(-reward)/(current_depth*current_depth)
